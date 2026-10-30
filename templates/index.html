@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TubePull — High-Fidelity Video & Audio Extractor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    },
+                    colors: {
+                        obsidian: '#08090d',
+                        surface: {
+                            50: '#1a1d26',
+                            100: '#14161f',
+                            200: '#0f1118',
+                            border: 'rgba(255, 255, 255, 0.08)',
+                            borderLight: 'rgba(255, 255, 255, 0.15)'
+                        },
+                        crimson: {
+                            500: '#ff2a51',
+                            600: '#e61e43',
+                            700: '#c01535',
+                            glow: 'rgba(255, 42, 81, 0.25)'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="bg-obsidian text-slate-200 min-h-screen flex flex-col font-sans selection:bg-crimson-600 selection:text-white antialiased relative overflow-x-hidden">
+
+    <!-- Subtle Ambient Lighting Backdrop -->
+    <div class="pointer-events-none fixed inset-0 overflow-hidden z-0">
+        <div class="absolute -top-40 left-1/2 -translate-x-1/2 w-[650px] h-[350px] bg-gradient-to-b from-crimson-500/10 via-rose-600/5 to-transparent blur-[120px] rounded-full"></div>
+        <div class="absolute top-[30%] -right-40 w-[400px] h-[400px] bg-indigo-600/5 blur-[140px] rounded-full"></div>
+        <div class="absolute top-[60%] -left-40 w-[400px] h-[400px] bg-rose-600/5 blur-[140px] rounded-full"></div>
+    </div>
+
+    <!-- Navigation Header -->
+    <header class="relative z-10 border-b border-surface-border bg-obsidian/75 backdrop-blur-xl sticky top-0">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3 cursor-pointer select-none" onclick="resetWorkspace()">
+                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-crimson-500 to-rose-600 p-[1px] shadow-sm shadow-crimson-500/30">
+                    <div class="w-full h-full bg-surface-100 rounded-[7px] flex items-center justify-center">
+                        <svg class="w-4 h-4 text-white fill-current ml-0.5" viewBox="0 0 24 24">
+                            <path d="M8 5.14v14l11-7-11-7z"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="font-bold text-base tracking-tight text-white">TubePull</span>
+                    <span class="font-mono text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/[0.05] border border-white/[0.08] text-slate-400">v2.4</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3 text-xs">
+                <div class="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.03] border border-white/[0.06] text-slate-400 font-mono text-[11px]">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    <span>Engine: FFmpeg 7.1</span>
+                </div>
+                <a href="#history-drawer" class="px-3 py-1.5 rounded-lg hover:bg-white/[0.05] text-slate-400 hover:text-white transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-clock-rotate-left text-xs"></i>
+                    <span>History</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="relative z-10 flex-grow max-w-4xl w-full mx-auto px-4 sm:px-6 py-10 md:py-16 flex flex-col items-center">
+        
+        <!-- App Title & Subtitle -->
+        <div class="text-center max-w-xl mx-auto mb-10 space-y-2">
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+                Download YouTube in Pure Quality
+            </h1>
+            <p class="text-sm sm:text-base text-slate-400 leading-relaxed font-normal">
+                Direct MP4 and MP3 extraction. Merged with FFmpeg at original bitrates without compression artifacts.
+            </p>
+        </div>
+
+        <!-- Universal Omni-Input Bar -->
+        <div class="w-full max-w-2xl">
+            <form id="url-form" onsubmit="handleFetch(event)" class="relative">
+                <div class="relative group rounded-2xl bg-surface-100 border border-surface-border p-2 transition-all duration-300 focus-within:border-crimson-500/70 focus-within:ring-4 focus-within:ring-crimson-500/10 shadow-xl shadow-black/40">
+                    <div class="flex items-center gap-2">
+                        <!-- Icon Left -->
+                        <div class="pl-3 text-slate-400 flex items-center">
+                            <svg class="w-5 h-5 text-slate-400 group-focus-within:text-crimson-500 transition-colors" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                            </svg>
+                        </div>
+
+                        <!-- Input Element -->
+                        <input 
+                            type="url" 
+                            id="video-url" 
+                            placeholder="Paste video, shorts, or playlist URL..." 
+                            class="w-full py-3 bg-transparent text-white placeholder-slate-500 text-sm sm:text-base font-normal focus:outline-none"
+                            autocomplete="off"
+                            spellcheck="false"
+                            required
+                        >
+
+                        <!-- Clear Action -->
+                        <button 
+                            type="button" 
+                            id="clear-btn" 
+                            onclick="clearInput()" 
+                            class="hidden p-1.5 text-slate-400 hover:text-white rounded-md hover:bg-white/[0.08] transition"
+                            title="Clear"
+                        >
+                            <i class="fa-solid fa-xmark text-sm"></i>
+                        </button>
+
+                        <!-- Paste Quick Action -->
+                        <button 
+                            type="button" 
+                            id="paste-btn" 
+                            onclick="pasteClipboard()" 
+                            class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-mono text-slate-400 bg-white/[0.04] hover:bg-white/[0.08] hover:text-white rounded-lg border border-white/[0.06] transition"
+                            title="Paste from clipboard"
+                        >
+                            <i class="fa-regular fa-clipboard"></i>
+                            <span>Ctrl+V</span>
+                        </button>
+
+                        <!-- Submit Button -->
+                        <button 
+                            type="submit" 
+                            id="fetch-btn" 
+                            class="px-5 py-3 rounded-xl bg-crimson-600 hover:bg-crimson-500 text-white font-semibold text-sm transition-all duration-200 active:scale-95 shadow-md shadow-crimson-600/30 flex items-center gap-2 shrink-0 select-none"
+                        >
+                            <span id="fetch-btn-label">Extract</span>
+                            <i id="fetch-btn-icon" class="fa-solid fa-arrow-right text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Quick Demo Pills -->
+            <div class="mt-3.5 flex items-center justify-between text-xs px-2 text-slate-400">
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-400 text-[11px]">Quick test:</span>
+                    <button type="button" onclick="loadSample('https://www.youtube.com/watch?v=dQw4w9WgXcQ')" class="hover:text-white hover:underline transition">Music Clip</button>
+                    <span class="text-slate-400">•</span>
+                    <button type="button" onclick="loadSample('https://www.youtube.com/watch?v=aqz-KE-bpKQ')" class="hover:text-white hover:underline transition">4K Footage</button>
+                    <span class="text-slate-400">•</span>
+                    <button type="button" onclick="loadSample('https://www.youtube.com/shorts/5Q8vO9gJg38')" class="hover:text-white hover:underline transition">Shorts</button>
+                </div>
+                <div class="hidden sm:block text-[11px] text-slate-400 font-mono">
+                    Press <kbd class="px-1 py-0.5 rounded bg-white/[0.05] border border-white/[0.1] text-slate-400">Enter</kbd> to inspect
+                </div>
+            </div>
+        </div>
+
+        <!-- Feedback Alert Banner -->
+        <div id="error-banner" class="hidden w-full max-w-2xl mt-6 p-4 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-200 flex items-start gap-3 text-sm animate-fade-in">
+            <i class="fa-solid fa-circle-exclamation text-rose-400 mt-0.5 shrink-0"></i>
+            <div class="flex-grow">
+                <div class="font-semibold text-rose-200" id="error-title">Extraction Error</div>
+                <div class="text-xs text-rose-300/80 mt-0.5 font-normal" id="error-message">Unable to parse the video link.</div>
+            </div>
+            <button onclick="hideError()" class="text-rose-400 hover:text-white">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <!-- Skeleton Loader (Inspector State) -->
+        <div id="skeleton-loader" class="hidden w-full max-w-2xl mt-8 rounded-2xl bg-surface-100 border border-surface-border p-6 space-y-6 animate-pulse">
+            <div class="flex flex-col sm:flex-row gap-5 items-start">
+                <div class="w-full sm:w-52 aspect-video bg-white/[0.04] rounded-xl shrink-0"></div>
+                <div class="flex-grow space-y-3 w-full">
+                    <div class="h-5 bg-white/[0.05] rounded-md w-3/4"></div>
+                    <div class="h-3.5 bg-white/[0.04] rounded-md w-1/2"></div>
+                    <div class="h-3.5 bg-white/[0.04] rounded-md w-1/3"></div>
+                </div>
+            </div>
+            <div class="h-10 bg-white/[0.03] rounded-xl w-full"></div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div class="h-16 bg-white/[0.03] rounded-xl"></div>
+                <div class="h-16 bg-white/[0.03] rounded-xl"></div>
+                <div class="h-16 bg-white/[0.03] rounded-xl"></div>
+                <div class="h-16 bg-white/[0.03] rounded-xl"></div>
+            </div>
+        </div>
+
+        <!-- Media Inspector Card -->
+        <div id="inspector-card" class="hidden w-full max-w-2xl mt-8 rounded-2xl bg-surface-100 border border-surface-border overflow-hidden shadow-2xl animate-fade-in">
+            <!-- Media Meta Header -->
+            <div class="p-5 sm:p-6 border-b border-surface-border flex flex-col sm:flex-row gap-5 items-start">
+                <!-- Cinema Thumbnail Preview -->
+                <div class="relative w-full sm:w-56 aspect-video rounded-xl overflow-hidden bg-black shrink-0 border border-white/[0.06] group">
+                    <img id="media-thumb" src="" alt="Thumbnail" class="w-full h-full object-cover">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+                    <div class="absolute bottom-2 right-2 bg-black/80 backdrop-blur-md px-2 py-0.5 rounded text-[11px] font-mono font-medium text-white border border-white/10" id="media-duration">
+                        00:00
+                    </div>
+                </div>
+
+                <!-- Video Info -->
+                <div class="flex-grow min-w-0 space-y-2">
+                    <h2 id="media-title" class="text-base sm:text-lg font-bold text-white tracking-tight leading-snug line-clamp-2">
+                        Video Title Placeholder
+                    </h2>
+                    
+                    <div class="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                        <div class="flex items-center gap-1.5 text-slate-300 font-medium">
+                            <span class="w-5 h-5 rounded-full bg-white/[0.08] flex items-center justify-center text-[10px] text-slate-300">
+                                <i class="fa-solid fa-user"></i>
+                            </span>
+                            <span id="media-channel" class="truncate max-w-[140px] sm:max-w-[200px]">Channel Name</span>
+                        </div>
+                        <span class="text-slate-600">•</span>
+                        <div class="font-mono text-slate-400">
+                            <span id="media-views">0</span> views
+                        </div>
+                    </div>
+
+                    <div class="pt-1">
+                        <a id="media-external-link" href="#" target="_blank" class="inline-flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-crimson-500 font-mono transition">
+                            <span>Open source on YouTube</span>
+                            <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Format & Quality Selector -->
+            <div class="p-5 sm:p-6 space-y-5">
+                <!-- Segmented Control Bar -->
+                <div class="flex p-1 bg-surface-200 rounded-xl border border-surface-border">
+                    <button 
+                        type="button" 
+                        onclick="switchFormatTab('video')" 
+                        id="tab-video-btn" 
+                        class="flex-1 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-2 bg-white/[0.08] text-white shadow-sm"
+                    >
+                        <i class="fa-solid fa-video text-xs"></i>
+                        <span>Video (MP4)</span>
+                    </button>
+                    <button 
+                        type="button" 
+                        onclick="switchFormatTab('audio')" 
+                        id="tab-audio-btn" 
+                        class="flex-1 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-2 text-slate-400 hover:text-white"
+                    >
+                        <i class="fa-solid fa-headphones text-xs"></i>
+                        <span>Audio (MP3 / M4A)</span>
+                    </button>
+                </div>
+
+                <!-- Video Quality Grid -->
+                <div id="video-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <!-- Populated by JS -->
+                </div>
+
+                <!-- Audio Quality Grid -->
+                <div id="audio-grid" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <!-- Populated by JS -->
+                </div>
+
+                <!-- Main Action Execution Bar -->
+                <div class="pt-4 border-t border-surface-border flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="text-[11px] text-slate-400 font-mono flex items-center gap-2">
+                        <i class="fa-solid fa-circle-check text-emerald-400"></i>
+                        <span id="selected-summary-text">Ready to extract</span>
+                    </div>
+
+                    <button 
+                        type="button" 
+                        id="execute-download-btn" 
+                        onclick="executeDownload()" 
+                        class="w-full sm:w-auto px-7 py-3 bg-crimson-600 hover:bg-crimson-500 text-white font-semibold text-sm rounded-xl transition duration-200 active:scale-[0.98] shadow-lg shadow-crimson-600/25 flex items-center justify-center gap-2"
+                    >
+                        <i class="fa-solid fa-arrow-down"></i>
+                        <span id="execute-btn-label">Download MP4</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Processing & Terminal Progress Card -->
+        <div id="progress-card" class="hidden w-full max-w-2xl mt-8 rounded-2xl bg-surface-100 border border-surface-border p-6 sm:p-7 shadow-2xl animate-fade-in space-y-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3.5">
+                    <div id="progress-indicator-icon" class="w-10 h-10 rounded-xl bg-crimson-500/10 border border-crimson-500/20 text-crimson-500 flex items-center justify-center text-sm shrink-0">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i>
+                    </div>
+                    <div>
+                        <h3 id="progress-title" class="text-sm font-bold text-white tracking-tight">Streaming Media Track</h3>
+                        <p id="progress-desc" class="text-xs text-slate-400 font-mono mt-0.5">Contacting video distribution network...</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <span id="progress-percentage-val" class="font-mono text-2xl font-bold text-white">0%</span>
+                </div>
+            </div>
+
+            <!-- Fluid Progress Track -->
+            <div class="w-full bg-surface-200 rounded-full h-2 overflow-hidden p-[1px] border border-surface-border">
+                <div id="progress-fill" class="h-full bg-gradient-to-r from-crimson-600 to-rose-400 rounded-full transition-all duration-200" style="width: 0%"></div>
+            </div>
+
+            <!-- Specs Telemetry Grid -->
+            <div id="telemetry-box" class="grid grid-cols-3 gap-2.5 font-mono text-xs">
+                <div class="bg-surface-200/80 border border-surface-border p-3 rounded-xl">
+                    <span class="text-slate-400 text-[10px] block uppercase tracking-wider mb-1">Throughput</span>
+                    <span id="telemetry-speed" class="text-white font-semibold">-- MB/s</span>
+                </div>
+                <div class="bg-surface-200/80 border border-surface-border p-3 rounded-xl">
+                    <span class="text-slate-400 text-[10px] block uppercase tracking-wider mb-1">Est. Time</span>
+                    <span id="telemetry-eta" class="text-white font-semibold">--</span>
+                </div>
+                <div class="bg-surface-200/80 border border-surface-border p-3 rounded-xl">
+                    <span class="text-slate-400 text-[10px] block uppercase tracking-wider mb-1">Pipeline</span>
+                    <span id="telemetry-pipeline" class="text-slate-300 font-medium truncate block">Stream Copy</span>
+                </div>
+            </div>
+
+            <!-- Completed Actions -->
+            <div id="completed-panel" class="hidden pt-2 border-t border-surface-border flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div class="text-xs text-emerald-400 font-mono flex items-center gap-2">
+                    <i class="fa-solid fa-circle-check"></i>
+                    <span id="completed-size-tag">File Ready</span>
+                </div>
+                <div class="flex items-center gap-2.5 w-full sm:w-auto">
+                    <button 
+                        type="button" 
+                        onclick="resetWorkspace()" 
+                        class="px-4 py-2 text-xs font-semibold rounded-lg bg-surface-200 hover:bg-white/[0.08] text-slate-300 hover:text-white border border-surface-border transition"
+                    >
+                        New Link
+                    </button>
+                    <a 
+                        id="save-file-link" 
+                        href="#" 
+                        class="flex-1 sm:flex-none px-5 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/30 transition flex items-center justify-center gap-1.5"
+                    >
+                        <i class="fa-solid fa-download"></i> Save to Computer
+                    </a>
+                </div>
+            </div>
+
+            <!-- Failed Panel -->
+            <div id="failure-panel" class="hidden pt-2 border-t border-surface-border flex items-center justify-between">
+                <span id="failure-msg" class="text-xs text-rose-400 font-mono">Process terminated.</span>
+                <button 
+                    type="button" 
+                    onclick="resetWorkspace()" 
+                    class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface-200 hover:bg-surface-50 text-white border border-surface-border transition"
+                >
+                    Dismiss
+                </button>
+            </div>
+        </div>
+
+        <!-- History Drawer -->
+        <section id="history-drawer" class="w-full max-w-2xl mt-16 pt-8 border-t border-surface-border">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">Recent Extractions</span>
+                </div>
+                <button 
+                    type="button" 
+                    id="clear-history-action" 
+                    onclick="clearHistoryStorage()" 
+                    class="hidden text-[11px] font-mono text-slate-400 hover:text-crimson-500 transition"
+                >
+                    Clear All
+                </button>
+            </div>
+
+            <div id="history-container" class="space-y-2">
+                <div id="history-empty" class="p-6 text-center rounded-xl border border-dashed border-surface-border text-xs text-slate-400 font-mono">
+                    No extractions recorded in this session.
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Refined Minimal Footer -->
+    <footer class="relative z-10 border-t border-surface-border py-6 text-center text-xs text-slate-400 font-mono">
+        <p>TubePull • Local Workstation Engine • Python 3.13 & FFmpeg</p>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
